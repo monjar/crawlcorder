@@ -1,23 +1,15 @@
 {
-  "name": "vanilla-typescript",
+  "name": "chrome-action-recorder",
   "version": "1.0.0",
-  "description": "JavaScript and TypeScript example starter project",
-  "main": "index.html",
+  "description": "Chrome extension to record user actions on websites",
   "scripts": {
-    "start": "parcel index.html",
-    "build": "parcel build index.html"
+    "build": "tsc && cp -r static/* dist/",
+    "watch": "tsc --watch"
   },
-  "dependencies": {
-    "parcel-bundler": "1.6.1"
-  },
+  "author": "Your Name",
+  "license": "MIT",
   "devDependencies": {
-    "typescript": "4.4.4"
-  },
-  "resolutions": {
-    "@babel/preset-env": "7.13.8"
-  },
-  "keywords": [
-    "typescript",
-    "javascript"
-  ]
+    "@types/chrome": "^0.0.315",
+    "typescript": "^5.3.3"
+  }
 }
