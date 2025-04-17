@@ -1,5 +1,5 @@
 namespace Types {
-    export type ActionType = "click" | "input";
+    export type ActionType = "click" | "input" | "select" | "change" | "submit" | "keydown" | "keyup" | "keypress";
 
     export interface Action {
         type: ActionType;

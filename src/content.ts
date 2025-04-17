@@ -12,18 +12,50 @@ chrome.storage.local.get(['isRecording'], (result: Partial<Types.StorageData>) =
 });
 
 function getUniqueSelector(el: HTMLElement): string {
-  if (el.id) return `#${el.id}`;
-  if (el.className && typeof el.className === "string") {
-    return "." + el.className.trim().split(/\s+/).join(".");
+  // Base case - if element has ID, it's already unique
+  if (el.id) {
+    return `#${el.id}`;
   }
-  return el.tagName.toLowerCase();
+
+  // Get the path segments from element to root
+  const segments: string[] = [];
+  let currentEl: HTMLElement | null = el;
+  
+  while (currentEl && currentEl !== document.body) {
+    // Start with the element tag
+    let segment = currentEl.tagName.toLowerCase();
+    
+    // Add class names if they exist
+    if (currentEl.className && typeof currentEl.className === "string") {
+      segment += "." + currentEl.className.trim().split(/\s+/).join(".");
+    }
+    
+    // Add position among siblings of same type
+    const siblings = Array.from(currentEl.parentElement?.children || []);
+    const similarSiblings = siblings.filter(sibling => 
+      sibling.tagName === currentEl?.tagName &&
+      sibling.className === currentEl?.className
+    );
+    
+    if (similarSiblings.length > 1) {
+      const index = similarSiblings.indexOf(currentEl) + 1;
+      segment += `:nth-of-type(${index})`;
+    }
+    
+    segments.unshift(segment);
+    currentEl = currentEl.parentElement;
+  }
+
+  // Join all segments with > to ensure direct child relationship
+  return segments.join(" > ");
 }
+
 
 function handleClick(event: MouseEvent): void {
   if (!isRecording) return;
   const target = event.target as HTMLElement;
   const selector: string = getUniqueSelector(target);
-  recordAction({ type: "click", selector, timestamp: Date.now() });
+  recordAction({ type: "click", selector, timestamp: Date.now() }, false);
 }
 
 function handleInput(event: Event): void {
@@ -35,14 +67,23 @@ function handleInput(event: Event): void {
     selector,
     value: target.value,
     timestamp: Date.now(),
-  });
+  }, true);
 }
 
-function recordAction(action: Types.Action): void {
+function recordAction(action: Types.Action, shouldUpdateLast: boolean=false): void {
   chrome.storage.local.get(
     ["actions"],
     (result: Partial<Types.StorageData>) => {
       const actions: Types.Action[] = result.actions || [];
+      while(shouldUpdateLast && actions.length > 0) {
+        const lastAction = actions[actions.length - 1];
+        if (lastAction.type === action.type && lastAction.selector === action.selector) {
+          actions.pop();
+        }
+        else {
+          break;
+        }
+      }
       actions.push(action);
       chrome.storage.local.set({ actions });
     }
@@ -103,7 +144,7 @@ chrome.runtime.onMessage.addListener(
 chrome.storage.onChanged.addListener((changes: Types.StorageChanges): void => {
   if (changes.isRecording) {
     isRecording = changes.isRecording.newValue;
-    console.log("Recording state changed:", isRecording); // Add logging
+    console.log("Recording state changed:", isRecording);
     if (isRecording) {
       initializeListeners();
     } else {

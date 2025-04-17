@@ -9,7 +9,7 @@ function updateStatus(): void {
     (result: Partial<Types.StorageData>) => {
       if (!statusEl) return;
       if (result.isRecording) {
-        statusEl.textContent = "● Recording";
+        statusEl.textContent = "Recording";
         statusEl.style.color = "red";
       } else {
         statusEl.textContent = "Not Recording";
