@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "description": "Chrome extension to record user actions on websites",
   "scripts": {
-    "build": "tsc && cp -r static/* dist/",
+    "clean": "if exist dist rmdir /s /q dist",
+    "build": "npm run clean && tsc && xcopy /E /I static dist",
     "watch": "tsc --watch"
   },
   "author": "Your Name",

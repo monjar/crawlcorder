@@ -1,11 +1,15 @@
-type Action = {
-  type: "click" | "input";
-  selector: string;
-  value?: string;
-  timestamp: number;
-};
+/// <reference path="./types.ts" />
 
-let isRecording = false;
+
+let isRecording: boolean = false;
+
+chrome.storage.local.get(['isRecording'], (result: Partial<Types.StorageData>) => {
+  isRecording = result.isRecording || false;
+  if (isRecording) {
+    console.log('Initializing listeners due to existing recording state');
+    initializeListeners();
+  }
+});
 
 function getUniqueSelector(el: HTMLElement): string {
   if (el.id) return `#${el.id}`;
@@ -15,17 +19,17 @@ function getUniqueSelector(el: HTMLElement): string {
   return el.tagName.toLowerCase();
 }
 
-function handleClick(event: MouseEvent) {
+function handleClick(event: MouseEvent): void {
   if (!isRecording) return;
   const target = event.target as HTMLElement;
-  const selector = getUniqueSelector(target);
+  const selector: string = getUniqueSelector(target);
   recordAction({ type: "click", selector, timestamp: Date.now() });
 }
 
-function handleInput(event: Event) {
+function handleInput(event: Event): void {
   if (!isRecording) return;
   const target = event.target as HTMLInputElement;
-  const selector = getUniqueSelector(target);
+  const selector: string = getUniqueSelector(target);
   recordAction({
     type: "input",
     selector,
@@ -34,62 +38,72 @@ function handleInput(event: Event) {
   });
 }
 
-function recordAction(action: Action) {
-  chrome.storage.local.get(["actions"], (result) => {
-    const actions: Action[] = result.actions || [];
-    actions.push(action);
-    chrome.storage.local.set({ actions });
-  });
+function recordAction(action: Types.Action): void {
+  chrome.storage.local.get(
+    ["actions"],
+    (result: Partial<Types.StorageData>) => {
+      const actions: Types.Action[] = result.actions || [];
+      actions.push(action);
+      chrome.storage.local.set({ actions });
+    }
+  );
 }
 
-// Initialize event listeners
-function initializeListeners() {
+function initializeListeners(): void {
   document.addEventListener("click", handleClick, true);
   document.addEventListener("input", handleInput, true);
 }
 
-// Remove event listeners
-function removeListeners() {
+function removeListeners(): void {
   document.removeEventListener("click", handleClick, true);
   document.removeEventListener("input", handleInput, true);
 }
 
-// Check recording state immediately when script loads
-function checkRecordingState() {
-  chrome.storage.local.get(['isRecording'], (result) => {
-    isRecording = result.isRecording || false;
-    if (isRecording) {
-      initializeListeners();
+function checkRecordingState(): void {
+  chrome.storage.local.get(
+    ["isRecording"],
+    (result: Partial<Types.StorageData>) => {
+      isRecording = result.isRecording || false;
+      if (isRecording) {
+        initializeListeners();
+      }
     }
-  });
+  );
 }
 
-// Run state check when page loads
 document.readyState === 'loading' 
   ? document.addEventListener('DOMContentLoaded', checkRecordingState)
   : checkRecordingState();
 
-// Message listener
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message.command === "start") {
-    isRecording = true;
-    initializeListeners();
-    chrome.storage.local.set({ actions: [] });
-  } else if (message.command === "stop") {
-    isRecording = false;
-    removeListeners();
-  } else if (message.command === "getActions") {
-    chrome.storage.local.get(["actions"], (result) => {
-      sendResponse(result.actions || []);
-    });
-    return true;
+chrome.runtime.onMessage.addListener(
+  (
+    message: Types.MessageCommand,
+    _sender: chrome.runtime.MessageSender,
+    sendResponse: (response?: Types.Action[]) => void
+  ): boolean | undefined => {
+    if (message.command === "start") {
+      isRecording = true;
+      initializeListeners();
+    } else if (message.command === "stop") {
+      isRecording = false;
+      removeListeners();
+    } else if (message.command === "getActions") {
+      chrome.storage.local.get(
+        ["actions"],
+        (result: Partial<Types.StorageData>) => {
+          sendResponse(result.actions || []);
+        }
+      );
+      return true;
+    }
   }
-});
+);
 
-// Listen for storage changes
-chrome.storage.onChanged.addListener((changes) => {
+// Make sure storage listener is working
+chrome.storage.onChanged.addListener((changes: Types.StorageChanges): void => {
   if (changes.isRecording) {
     isRecording = changes.isRecording.newValue;
+    console.log("Recording state changed:", isRecording); // Add logging
     if (isRecording) {
       initializeListeners();
     } else {

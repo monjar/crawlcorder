@@ -1,50 +1,69 @@
-const statusEl = document.getElementById("status");
+/// <reference path="./types.ts" />
 
-function updateStatus() {
-  chrome.storage.local.get(["isRecording"], (result) => {
-    if (result.isRecording) {
-      statusEl!.textContent = "● Recording";
-      statusEl!.style.color = "red";
-    } else {
-      statusEl!.textContent = "Not Recording";
-      statusEl!.style.color = "black";
+
+const statusEl: HTMLElement | null = document.getElementById("status");
+
+function updateStatus(): void {
+  chrome.storage.local.get(
+    ["isRecording"],
+    (result: Partial<Types.StorageData>) => {
+      if (!statusEl) return;
+      if (result.isRecording) {
+        statusEl.textContent = "● Recording";
+        statusEl.style.color = "red";
+      } else {
+        statusEl.textContent = "Not Recording";
+        statusEl.style.color = "black";
+      }
     }
-  });
+  );
 }
 
-function setRecording(isRecording: boolean) {
+function setRecording(isRecording: boolean): void {
   chrome.storage.local.set({ isRecording });
   updateStatus();
 }
 
-function sendCommand(command: string) {
-  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    if (tabs[0]?.id !== undefined) {
-      chrome.tabs.sendMessage(tabs[0].id, { command }, () => {
-        if (chrome.runtime.lastError) {
-          console.warn('Could not send message to content script');
-          return;
-        }
-        // Update storage after successful message delivery
-        if (command === "start") {
-          chrome.storage.local.set({ isRecording: true, actions: [] });
-        } else if (command === "stop") {
-          chrome.storage.local.set({ isRecording: false });
-        }
+function sendCommand(command: string): void {
+  chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
+    if (!tabs[0]?.id) {
+      console.error("No active tab found");
+      return;
+    }
+
+    try {
+      // Set storage state first
+      if (command === "start") {
+        await chrome.storage.local.set({ isRecording: true, actions: [] });
+      } else if (command === "stop") {
+        await chrome.storage.local.set({ isRecording: false });
+      }
+
+      // Then send message to content script
+      await chrome.tabs.sendMessage(tabs[0].id, { command });
+      updateStatus();
+    } catch (error) {
+      console.error("Error sending command:", error);
+      if (chrome.runtime.lastError) {
+        // Try re-injecting the content script
+        await chrome.scripting.executeScript({
+          target: { tabId: tabs[0].id },
+          files: ["content.js"]
+        });
+        // Retry sending the command
+        await chrome.tabs.sendMessage(tabs[0].id, { command });
         updateStatus();
-      });
+      }
     }
   });
 }
 
 document.getElementById("start")?.addEventListener("click", () => {
   sendCommand("start");
-  setRecording(true);
 });
 
 document.getElementById("stop")?.addEventListener("click", () => {
   sendCommand("stop");
-  setRecording(false);
 });
 
 document.getElementById("view")?.addEventListener("click", () => {

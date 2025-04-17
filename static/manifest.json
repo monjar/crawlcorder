@@ -4,7 +4,7 @@
   "version": "1.0",
   "description": "Records user actions on a web page",
   "permissions": ["scripting", "storage", "activeTab", "tabs"],
-  "host_permissions": ["<all_urls>"],
+  "host_permissions": ["http://*/*", "https://*/*"],
   "background": {
     "service_worker": "background.js"
   },
