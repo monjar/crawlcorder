@@ -21,8 +21,10 @@
       "css": ["tooltip.css"]
     }
   ],
-  "web_accessible_resources": [{
-    "resources": ["tooltip.html"],
-    "matches": ["<all_urls>"]
-  }]
+  "web_accessible_resources": [
+    {
+      "resources": ["tooltip.html", "stationaryTooltip.html"],
+      "matches": ["<all_urls>"]
+    }
+  ]
 }

@@ -53,7 +53,8 @@
   gap: 4px;
 }
 
-.label-select, .custom-label {
+.label-select,
+.custom-label {
   padding: 4px;
   border: 1px solid #ccc;
   border-radius: 4px;
@@ -77,4 +78,29 @@
 
 .recorder-tooltip.fixed {
   pointer-events: all;
+}
+
+.stationary-tooltip {
+  position: fixed;
+  bottom: 10px;
+  left: 10px;
+  background: rgba(0, 0, 0, 0.5); /* Transparent background */
+  color: white;
+  padding: 10px;
+  border-radius: 8px;
+  z-index: 10000;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.toggle-button {
+  background: #007bff;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.toggle-button:hover {
+  background: #0056b3;
 }

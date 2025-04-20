@@ -8,9 +8,20 @@ let isAltPressed: boolean = false;
 let selectedTable: HTMLElement | null = null;
 let lastHighlightedTable: HTMLElement | null = null;
 
+// Add near the top of the file with other state variables
+enum TableLoopState {
+  INACTIVE,
+  SELECTING,
+  ACTIVE,
+}
+
+// Replace the boolean state with enum
+let tableLoopState: TableLoopState = TableLoopState.INACTIVE;
+
 chrome.storage.local.get(
   ["isRecording"],
   (result: Partial<Types.StorageData>) => {
+    if (isRecording && result.isRecording) return;
     isRecording = result.isRecording || false;
     if (isRecording) {
       console.log("Initializing listeners due to existing recording state");
@@ -19,44 +30,42 @@ chrome.storage.local.get(
   }
 );
 
-function getUniqueSelector(el: HTMLElement): string {
-  // Base case - if element has ID, it's already unique
-  if (el.id) {
-    return `#${el.id}`;
+function getUniqueSelector(element: HTMLElement): string {
+  const root = element.getRootNode() as HTMLElement;
+  if (!element || element === root) return "";
+
+  /* ── 1. Unique id ─────────────────────────────── */
+  const id = element.getAttribute("id");
+  if (id && root.querySelectorAll(`#${CSS.escape(id)}`).length === 1) {
+    return `#${CSS.escape(id)}`;
   }
 
-  // Get the path segments from element to root
-  const segments: string[] = [];
-  let currentEl: HTMLElement | null = el;
+  /* ── 2. Tag + class combo ─────────────────────── */
+  const tag = element.tagName.toLowerCase();
+  const classes = Array.from(element.classList).map(CSS.escape);
+  let selector = classes.length ? `${tag}.${classes.join(".")}` : tag;
 
-  while (currentEl && currentEl !== document.body) {
-    // Start with the element tag
-    let segment = currentEl.tagName.toLowerCase();
-
-    // Add class names if they exist
-    if (currentEl.className && typeof currentEl.className === "string") {
-      segment += "." + currentEl.className.trim().split(/\s+/).join(".");
+  /* ── 3. Add :nth‑of‑type if still not unique ──── */
+  if (root.querySelectorAll(selector).length !== 1) {
+    const parent = element.parentElement;
+    if (parent) {
+      const sameTagSiblings = Array.from(parent.children).filter(
+        (sib) => sib.tagName === element.tagName
+      );
+      if (sameTagSiblings.length > 1) {
+        const index = sameTagSiblings.indexOf(element) + 1; // 1‑based
+        selector += `:nth-of-type(${index})`;
+      }
     }
-
-    // Add position among siblings of same type
-    const siblings = Array.from(currentEl.parentElement?.children || []);
-    const similarSiblings = siblings.filter(
-      (sibling) =>
-        sibling.tagName === currentEl?.tagName &&
-        sibling.className === currentEl?.className
-    );
-
-    if (similarSiblings.length > 1) {
-      const index = similarSiblings.indexOf(currentEl) + 1;
-      segment += `:nth-of-type(${index})`;
-    }
-
-    segments.unshift(segment);
-    currentEl = currentEl.parentElement;
   }
 
-  // Join all segments with > to ensure direct child relationship
-  return segments.join(" > ");
+  if (root.querySelectorAll(selector).length === 1) {
+    return selector; // unique → done
+  }
+
+  /* ── 4. Prepend ancestor’s selector recursively ─ */
+  const parentSel = getUniqueSelector(element.parentElement!);
+  return parentSel ? `${parentSel} > ${selector}` : selector;
 }
 
 function isInteractiveClick(event: MouseEvent): boolean {
@@ -81,7 +90,7 @@ function isInteractiveClick(event: MouseEvent): boolean {
 function shouldIgnoreElement(element: HTMLElement): boolean {
   let current: HTMLElement | null = element;
   while (current) {
-    if (current.classList.contains('ignore-recorder')) {
+    if (current.classList.contains("ignore-recorder")) {
       return true;
     }
     current = current.parentElement;
@@ -95,34 +104,32 @@ function handleClick(event: MouseEvent): void {
 
   if (shouldIgnoreElement(target)) return;
 
-  if (isAltPressed) {
+  // Handle table selection mode
+  if (tableLoopState === TableLoopState.SELECTING) {
     const tableElement = findTableElement(target);
     if (tableElement) {
       selectedTable = tableElement;
-      // Wait for possible next button selection
+      tableLoopState = TableLoopState.ACTIVE;
+      recordAction(
+        {
+          type: "tableLoop",
+          selector: getUniqueSelector(tableElement),
+          timestamp: Date.now(),
+        },
+        false
+      );
+      updateTableLoopButton();
       return;
     }
-    // If we already have a table and this is a clickable element
-    else if (selectedTable && isInteractiveClick(event)) {
-      recordAction({
-        type: "tableLoop",
-        selector: getUniqueSelector(selectedTable),
-        timestamp: Date.now()
-      }, false);
-      recordAction({
-        type: "tablePaginationNext",
-        selector: getUniqueSelector(target),
-        timestamp: Date.now()
-      }, false);
-      selectedTable = null;
-      isAltPressed = false;
+  }
+
+  // Handle other clicks only if not in SELECTING state
+  if (tableLoopState !== TableLoopState.SELECTING) {
+    if (isAltPressed) {
+      // ... existing Alt press handling ...
+    } else if (isInteractiveClick(event)) {
+      // ... existing click handling ...
     }
-  } else if (isInteractiveClick(event)) {
-    recordAction({ 
-      type: "click", 
-      selector: getUniqueSelector(target), 
-      timestamp: Date.now() 
-    }, false);
   }
 }
 
@@ -170,23 +177,38 @@ function recordAction(
   );
 }
 
-function initializeListeners(): void {
+async function initializeListeners(): Promise<void> {
   document.addEventListener("click", handleClick, true);
   document.addEventListener("input", handleInput, true);
-  createRecorderTooltip();
+
+  await createRecorderTooltip();
+  await createStationaryTooltip(); // This will be the only place creating the stationary tooltip
 }
 
+// Add this function
+function removeStationaryTooltip(): void {
+  const stationaryTooltip = document.querySelector("#stationary-tooltip");
+  if (stationaryTooltip) {
+    stationaryTooltip.remove();
+  }
+}
+
+// Update removeListeners function
 function removeListeners(): void {
   document.removeEventListener("click", handleClick, true);
   document.removeEventListener("input", handleInput, true);
   removeRecorderTooltip();
+  removeStationaryTooltip(); // Add this line
 }
 
 function checkRecordingState(): void {
   chrome.storage.local.get(
     ["isRecording"],
     (result: Partial<Types.StorageData>) => {
+      if (isRecording && result.isRecording) return;
       isRecording = result.isRecording || false;
+
+      console.log("checkRecordingState...");
       if (isRecording) {
         initializeListeners();
       }
@@ -197,6 +219,11 @@ function checkRecordingState(): void {
 let recorderTooltip: HTMLDivElement | null = null;
 
 async function createRecorderTooltip(): Promise<void> {
+  // Check if tooltip already exists
+  if (recorderTooltip || document.querySelector("#recorder-tooltip")) {
+    return;
+  }
+
   try {
     // Fetch the tooltip HTML
     const response = await fetch(chrome.runtime.getURL("tooltip.html"));
@@ -219,6 +246,61 @@ async function createRecorderTooltip(): Promise<void> {
   }
 }
 
+async function createStationaryTooltip(): Promise<void> {
+  // Remove any existing tooltips first
+  const existingTooltips = document.querySelectorAll("#stationary-tooltip");
+  existingTooltips.forEach((tooltip) => tooltip.remove());
+  console.warn("CREATING STATIONARY TOOLTIP");
+  try {
+    // Fetch the tooltip HTML
+    const response = await fetch(
+      chrome.runtime.getURL("stationaryTooltip.html")
+    );
+    const html = await response.text();
+
+    // Create temporary container to parse HTML
+    const template = document.createElement("div");
+    template.innerHTML = html;
+
+    // Get the stationary tooltip element
+    const stationaryTooltip = template.querySelector(
+      "#stationary-tooltip"
+    ) as HTMLDivElement;
+    if (!stationaryTooltip)
+      throw new Error("Stationary tooltip element not found");
+
+    // Add it to the document
+    document.body.appendChild(stationaryTooltip);
+
+    // Set up the button click handler
+    const toggleButton = stationaryTooltip.querySelector(
+      "#toggle-table-loop"
+    ) as HTMLButtonElement;
+    if (!toggleButton) return;
+
+    toggleButton.addEventListener("click", () => {
+      switch (tableLoopState) {
+        case TableLoopState.INACTIVE:
+          tableLoopState = TableLoopState.SELECTING;
+          break;
+        case TableLoopState.SELECTING:
+          tableLoopState = TableLoopState.INACTIVE;
+          break;
+        case TableLoopState.ACTIVE:
+          tableLoopState = TableLoopState.INACTIVE;
+          selectedTable = null;
+          break;
+      }
+      updateTableLoopButton();
+    });
+
+    // Initialize button state
+    updateTableLoopButton();
+  } catch (error) {
+    console.error("Failed to create stationary tooltip:", error);
+  }
+}
+
 function removeRecorderTooltip() {
   if (recorderTooltip) {
     document.removeEventListener("mousemove", updateTooltipPosition);
@@ -236,17 +318,6 @@ function isHighlightableElement(element: HTMLElement): boolean {
   // Skip extension UI elements
   if (shouldIgnoreElement(element)) return false;
 
-  // Skip these elements
-  const skipTags = ["BUTTON", "INPUT", "A", "TEXTAREA", "SELECT"];
-  if (skipTags.includes(element.tagName)) return false;
-
-  // Skip elements with interactive roles
-  if (
-    element.getAttribute("role") === "button" ||
-    element.getAttribute("role") === "link"
-  )
-    return false;
-
   // Skip containers with multiple children
   if (element.children.length > 0) return false;
 
@@ -258,9 +329,11 @@ function isHighlightableElement(element: HTMLElement): boolean {
 function findTableElement(element: HTMLElement): HTMLElement | null {
   let current: HTMLElement | null = element;
   while (current && current !== document.body) {
-    if (current.tagName === 'TABLE' || 
-        current.getAttribute('role') === 'table' ||
-        current.classList.contains('table')) {
+    if (
+      current.tagName === "TABLE" ||
+      current.getAttribute("role") === "table" ||
+      current.classList.contains("table")
+    ) {
       return current;
     }
     current = current.parentElement;
@@ -270,7 +343,8 @@ function findTableElement(element: HTMLElement): HTMLElement | null {
 
 function updateTooltipPosition(e: MouseEvent) {
   if (!isRecording) return;
-  
+
+  // Handle tooltip position
   if (recorderTooltip && !isTooltipFixed) {
     recorderTooltip.style.left = `${e.clientX + 10}px`;
     recorderTooltip.style.top = `${e.clientY + 10}px`;
@@ -288,15 +362,15 @@ function updateTooltipPosition(e: MouseEvent) {
     lastHighlightedTable = null;
   }
 
-  // Handle table highlighting when Alt is pressed
-  if (isAltPressed) {
+  // Handle table highlighting during SELECTING state or when Alt is pressed
+  if (tableLoopState === TableLoopState.SELECTING || isAltPressed) {
     const tableElement = findTableElement(target);
     if (tableElement) {
       tableElement.classList.add("recorder-highlight-table");
       lastHighlightedTable = tableElement;
     }
   }
-  // Normal element highlighting when not in table selection mode
+  // Normal element highlighting when not in SELECTING state
   else if (isHighlightableElement(target)) {
     target.classList.add("recorder-highlight");
     lastHighlightedElement = target;
@@ -374,6 +448,28 @@ function setupLabelHandlers(target: HTMLElement): void {
   });
 }
 
+function updateTableLoopButton(): void {
+  const toggleButton = document.querySelector(
+    "#toggle-table-loop"
+  ) as HTMLButtonElement;
+  if (!toggleButton) return;
+
+  switch (tableLoopState) {
+    case TableLoopState.INACTIVE:
+      toggleButton.style.background = "#007bff";
+      toggleButton.textContent = "TableLoop";
+      break;
+    case TableLoopState.SELECTING:
+      toggleButton.style.background = "#ffc107";
+      toggleButton.textContent = "Select Table...";
+      break;
+    case TableLoopState.ACTIVE:
+      toggleButton.style.background = "#28a745";
+      toggleButton.textContent = "TableLoop (Active)";
+      break;
+  }
+}
+
 const releaseTooltip = () => {
   isControlPressed = false;
 
@@ -390,15 +486,15 @@ document.addEventListener("keyup", (e: KeyboardEvent) => {
   }
 });
 
-document.addEventListener('keydown', (e: KeyboardEvent) => {
-  if (e.key === 'Alt') {
+document.addEventListener("keydown", (e: KeyboardEvent) => {
+  if (e.key === "Alt") {
     isAltPressed = true;
     e.preventDefault();
   }
 });
 
-document.addEventListener('keyup', (e: KeyboardEvent) => {
-  if (e.key === 'Alt') {
+document.addEventListener("keyup", (e: KeyboardEvent) => {
+  if (e.key === "Alt") {
     isAltPressed = false;
     if (lastHighlightedTable) {
       lastHighlightedTable.classList.remove("recorder-highlight-table");
@@ -406,11 +502,14 @@ document.addEventListener('keyup', (e: KeyboardEvent) => {
     }
     // If we have both table and next button, record the actions
     if (selectedTable) {
-      recordAction({
-        type: "tableLoop",
-        selector: getUniqueSelector(selectedTable),
-        timestamp: Date.now()
-      }, false);
+      recordAction(
+        {
+          type: "tableLoop",
+          selector: getUniqueSelector(selectedTable),
+          timestamp: Date.now(),
+        },
+        false
+      );
       selectedTable = null;
     }
   }
@@ -428,6 +527,7 @@ chrome.runtime.onMessage.addListener(
   ): boolean | undefined => {
     if (message.command === "start") {
       isRecording = true;
+      console.log("Starting to record actions...");
       initializeListeners();
     } else if (message.command === "stop") {
       isRecording = false;
@@ -444,16 +544,15 @@ chrome.runtime.onMessage.addListener(
   }
 );
 
-// Make sure storage listener is working
-chrome.storage.onChanged.addListener((changes: Types.StorageChanges): void => {
-  if (changes.isRecording) {
-    isRecording = changes.isRecording.newValue;
-    console.log("Recording state changed:", isRecording);
-    if (isRecording) {
-      initializeListeners();
-    } else {
-      removeListeners();
-    }
-  }
-});
-
+// // Make sure storage listener is working
+// chrome.storage.onChanged.addListener((changes: Types.StorageChanges): void => {
+//   if (changes.isRecording) {
+//     isRecording = changes.isRecording.newValue;
+//     console.log("Recording state changed:", isRecording);
+//     if (isRecording) {
+//       initializeListeners();
+//     } else {
+//       removeListeners();
+//     }
+//   }
+// });
