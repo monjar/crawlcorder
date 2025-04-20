@@ -2,7 +2,7 @@
   position: fixed;
   pointer-events: none;
   background: rgba(255, 0, 0, 0.8);
-  color: white;
+  color: black;
   padding: 2px 6px;
   border-radius: 4px;
   font-size: 12px;
@@ -26,4 +26,55 @@
   outline: 2px solid rgba(255, 0, 0, 0.5) !important;
   outline-offset: 2px !important;
   background-color: rgba(255, 0, 0, 0.1) !important;
+}
+
+.recorder-highlight-table {
+  outline: 2px solid rgba(0, 128, 255, 0.5) !important;
+  outline-offset: 2px !important;
+  background-color: rgba(0, 128, 255, 0.1) !important;
+}
+
+.recorder-highlight-next {
+  outline: 2px solid rgba(0, 255, 128, 0.5) !important;
+  outline-offset: 2px !important;
+  background-color: rgba(0, 255, 128, 0.1) !important;
+}
+
+.tooltip-content {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.label-container {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.label-select, .custom-label {
+  padding: 4px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 12px;
+  width: 150px;
+}
+
+.save-label {
+  padding: 4px 8px;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.save-label:hover {
+  background: #f0f0f0;
+}
+
+.recorder-tooltip.fixed {
+  pointer-events: all;
 }

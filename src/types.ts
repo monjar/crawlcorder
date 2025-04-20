@@ -1,11 +1,20 @@
 namespace Types {
-    export type ActionType = "click" | "input" | "select" | "change" | "submit" | "keydown" | "keyup" | "keypress";
+    export type ActionType = "click" | "input" | "select" | "change" | "submit" | 
+                           "keydown" | "keyup" | "keypress" | "label" | 
+                           "tableLoop" | "tablePaginationNext";
 
     export interface Action {
         type: ActionType;
         selector: string;
         value?: string;
+        label?: string;
         timestamp: number;
+    }
+
+    export interface TableLoopAction extends Action {
+        type: "tableLoop" | "tablePaginationNext";
+        tableSelector?: string;
+        nextSelector?: string;
     }
 
     export interface StorageData {
