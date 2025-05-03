@@ -5,15 +5,25 @@ function getUniqueSelector(element: HTMLElement): string {
   const root = element.getRootNode() as HTMLElement;
   if (!element || element === root) return "";
 
-  // 1. Unique id
-  const id = element.getAttribute("id");
-  if (id && root.querySelectorAll(`#${CSS.escape(id)}`).length === 1) {
-    return `#${CSS.escape(id)}`;
-  }
+  //   // 1. Unique id
+  //   const id = element.getAttribute("id");
+  //   if (id && root.querySelectorAll(`#${CSS.escape(id)}`).length === 1) {
+  //     return `#${CSS.escape(id)}`;
+  //   }
 
-  // 2. Tag + class combo
+  // 2. Tag + class combo (excluding recorder classes)
   const tag = element.tagName.toLowerCase();
-  const classes = Array.from(element.classList).map(CSS.escape);
+  const recorderClasses = [
+    "recorder-highlight",
+    "recorder-highlight-table",
+    "recorder-highlight-next",
+    "ignore-recorder",
+  ];
+
+  const classes = Array.from(element.classList)
+    .filter((cls) => !recorderClasses.includes(cls))
+    .map(CSS.escape);
+
   let selector = classes.length ? `${tag}.${classes.join(".")}` : tag;
 
   // 3. Add :nth-of-type if not unique
@@ -24,17 +34,17 @@ function getUniqueSelector(element: HTMLElement): string {
         (sib) => sib.tagName === element.tagName
       );
       if (sameTagSiblings.length > 1) {
-        const index = sameTagSiblings.indexOf(element) + 1; // 1‑based
+        const index = sameTagSiblings.indexOf(element) + 1;
         selector += `:nth-of-type(${index})`;
       }
     }
   }
 
   if (root.querySelectorAll(selector).length === 1) {
-    return selector; // unique → done
+    return selector;
   }
 
-  // 4. Prepend ancestor’s selector recursively
+  // 4. Prepend ancestor's selector recursively
   const parentSel = getUniqueSelector(element.parentElement!);
   return parentSel ? `${parentSel} > ${selector}` : selector;
 }

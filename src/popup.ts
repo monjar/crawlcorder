@@ -1,5 +1,5 @@
 /// <reference path="./types.ts" />
-
+/// <reference path="./seleniumGenerator.ts" />
 
 const statusEl: HTMLElement | null = document.getElementById("status");
 
@@ -48,7 +48,7 @@ function sendCommand(command: string): void {
         // Try re-injecting the content script
         await chrome.scripting.executeScript({
           target: { tabId: tabs[0].id },
-          files: ["content.js"]
+          files: ["content.js"],
         });
         // Retry sending the command
         await chrome.tabs.sendMessage(tabs[0].id, { command });
@@ -85,7 +85,6 @@ document.getElementById("view")?.addEventListener("click", () => {
   });
 });
 
-
 document.getElementById("export")?.addEventListener("click", () => {
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     if (tabs[0]?.id !== undefined) {
@@ -121,6 +120,22 @@ document.getElementById("delete")?.addEventListener("click", () => {
   }
 });
 
-document.addEventListener('DOMContentLoaded', () => {
+document.getElementById("selenium")?.addEventListener("click", () => {
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    if (tabs[0]?.id !== undefined) {
+      chrome.tabs.sendMessage(
+        tabs[0].id,
+        { command: "getActions" },
+        (response) => {
+          if (response) {
+            downloadSeleniumScript(response);
+          }
+        }
+      );
+    }
+  });
+});
+
+document.addEventListener("DOMContentLoaded", () => {
   updateStatus();
 });

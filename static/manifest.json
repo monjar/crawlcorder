@@ -24,6 +24,7 @@
         "actionRecorder.js",
         "tooltip.js",
         "handlers.js",
+        "seleniumGenerator.js",
         "content.js"
       ],
       "css": ["tooltip.css"]
@@ -39,7 +40,8 @@
         "selectors.js",
         "actionRecorder.js",
         "tooltip.js",
-        "handlers.js"
+        "handlers.js",
+        "seleniumGenerator.js"
       ],
       "matches": ["<all_urls>"]
     }
