@@ -17,13 +17,30 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content.js"],
+      "js": [
+        "state.js",
+        "types.js",
+        "selectors.js",
+        "actionRecorder.js",
+        "tooltip.js",
+        "handlers.js",
+        "content.js"
+      ],
       "css": ["tooltip.css"]
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["tooltip.html", "stationaryTooltip.html"],
+      "resources": [
+        "tooltip.html",
+        "stationaryTooltip.html",
+        "state.js",
+        "types.js",
+        "selectors.js",
+        "actionRecorder.js",
+        "tooltip.js",
+        "handlers.js"
+      ],
       "matches": ["<all_urls>"]
     }
   ]
