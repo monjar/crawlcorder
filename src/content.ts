@@ -101,7 +101,6 @@ function shouldIgnoreElement(element: HTMLElement): boolean {
 function handleClick(event: MouseEvent): void {
   if (!isRecording) return;
   const target = event.target as HTMLElement;
-
   if (shouldIgnoreElement(target)) return;
 
   // Handle table selection mode
@@ -110,26 +109,24 @@ function handleClick(event: MouseEvent): void {
     if (tableElement) {
       selectedTable = tableElement;
       tableLoopState = TableLoopState.ACTIVE;
-      recordAction(
-        {
-          type: "tableLoop",
-          selector: getUniqueSelector(tableElement),
-          timestamp: Date.now(),
-        },
-        false
-      );
+      // Send TableLoopStart action
+      recordAction({
+        type: "tableLoopStart",
+        selector: getUniqueSelector(tableElement),
+        timestamp: Date.now(),
+      });
       updateTableLoopButton();
       return;
     }
   }
 
-  // Handle other clicks only if not in SELECTING state
-  if (tableLoopState !== TableLoopState.SELECTING) {
-    if (isAltPressed) {
-      // ... existing Alt press handling ...
-    } else if (isInteractiveClick(event)) {
-      // ... existing click handling ...
-    }
+  // For general clicks (when not in SELECTING state)
+  if (isInteractiveClick(event)) {
+    recordAction({
+      type: "click",
+      selector: getUniqueSelector(target),
+      timestamp: Date.now(),
+    });
   }
 }
 
@@ -287,6 +284,14 @@ async function createStationaryTooltip(): Promise<void> {
           tableLoopState = TableLoopState.INACTIVE;
           break;
         case TableLoopState.ACTIVE:
+          // Send TableLoopEnd action before resetting
+          if (selectedTable) {
+            recordAction({
+              type: "tableLoopEnd",
+              selector: getUniqueSelector(selectedTable),
+              timestamp: Date.now(),
+            });
+          }
           tableLoopState = TableLoopState.INACTIVE;
           selectedTable = null;
           break;
@@ -504,7 +509,7 @@ document.addEventListener("keyup", (e: KeyboardEvent) => {
     if (selectedTable) {
       recordAction(
         {
-          type: "tableLoop",
+          type: "tableLoopStart",
           selector: getUniqueSelector(selectedTable),
           timestamp: Date.now(),
         },
