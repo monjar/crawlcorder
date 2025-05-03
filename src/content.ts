@@ -56,7 +56,10 @@ chrome.runtime.onMessage.addListener(
     if (message.command === "start") {
       isRecording = true;
       console.log("Starting to record actions...");
-      initializeListeners();
+      // Clear previous recording data including baseUrl
+      chrome.storage.local.set({ actions: [], baseUrl: null }, () => {
+        initializeListeners();
+      });
     } else if (message.command === "stop") {
       isRecording = false;
       removeListeners();

@@ -6,9 +6,15 @@ function recordAction(
   shouldUpdateLast: boolean = false
 ): void {
   chrome.storage.local.get(
-    ["actions"],
+    ["actions", "baseUrl"],
     (result: Partial<Types.StorageData>) => {
       const actions: Types.Action[] = result.actions || [];
+
+      // If this is the first action, save the current URL
+      if (actions.length === 0 && !result.baseUrl) {
+        chrome.storage.local.set({ baseUrl: window.location.href });
+      }
+
       while (shouldUpdateLast && actions.length > 0) {
         const lastAction = actions[actions.length - 1];
         if (

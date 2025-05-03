@@ -11,7 +11,10 @@ function escapeSelector(selector: string): string {
   });
 }
 
-function generateSeleniumCode(actions: Types.Action[]): string {
+function generateSeleniumCode(
+  actions: Types.Action[],
+  baseUrl?: string
+): string {
   const imports = `from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -21,7 +24,7 @@ import time
 import re
 
 # Configuration
-base_url = ""  # Replace with the website's URL
+base_url = "${baseUrl || ""}"  # Website URL
 
 # Initialize the driver
 driver = webdriver.Chrome()  # Make sure you have ChromeDriver installed
@@ -142,14 +145,19 @@ finally:
 }
 
 function downloadSeleniumScript(actions: Types.Action[]): void {
-  const code = generateSeleniumCode(actions);
-  const blob = new Blob([code], { type: "text/plain" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "selenium_script.py";
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  chrome.storage.local.get(
+    ["baseUrl"],
+    (result: Partial<Types.StorageData>) => {
+      const code = generateSeleniumCode(actions, result.baseUrl);
+      const blob = new Blob([code], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "selenium_script.py";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+  );
 }

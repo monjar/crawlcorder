@@ -31,6 +31,7 @@ namespace Types {
   export interface StorageData {
     actions: Action[];
     isRecording: boolean;
+    baseUrl?: string; // Add this line
   }
 
   export interface MessageCommand {
