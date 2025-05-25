@@ -75,7 +75,7 @@ def process_table_rows(table_element, actions_in_loop):
 
         for row_index in range(total_rows):
             try:
-                print(f"\\nProcessing row {row_index + 1}/{total_rows}")
+                print(f"Processing row {row_index + 1}/{total_rows}")
 
                 # Wait for table to be present again and get fresh rows
                 tbody = WebDriverWait(driver, 10).until(
@@ -116,11 +116,72 @@ def process_table_rows(table_element, actions_in_loop):
                                             )
                                             value = element.text.strip()
                                             print(f"{post_action['label']}: {value}")
+                                        elif post_action["type"] == "click":
+                                            element = WebDriverWait(driver, 10).until(
+                                                EC.element_to_be_clickable(
+                                                    (By.CSS_SELECTOR, post_action["selector"])
+                                                )
+                                            )
+                                            driver.execute_script("arguments[0].scrollIntoView(true);", element)
+                                            time.sleep(1)
+                                            driver.execute_script("arguments[0].click();", element)
+                                            time.sleep(2)
+                                        elif post_action["type"] == "input":
+                                            try:
+                                                # Try multiple selectors for better compatibility
+                                                selectors_to_try = [
+                                                    post_action["selector"],
+                                                    f"input[class*='{post_action['selector'].split('.')[-1]}']",
+                                                    f"input[type='checkbox'][class*='datatable']",
+                                                    f"input[type='checkbox'][part='checkbox']"
+                                                ]
+                                                
+                                                element = None
+                                                for selector in selectors_to_try:
+                                                    try:
+                                                        element = WebDriverWait(driver, 3).until(
+                                                            EC.presence_of_element_located(
+                                                                (By.CSS_SELECTOR, selector)
+                                                            )
+                                                        )
+                                                        break
+                                                    except:
+                                                        continue
+                                                
+                                                if element is None:
+                                                    element = WebDriverWait(driver, 3).until(
+                                                        EC.presence_of_element_located(
+                                                            (By.XPATH, "//input[@type='checkbox' and contains(@class, 'datatable')]")
+                                                        )
+                                                    )
+                                                
+                                                # Check element type and handle accordingly
+                                                element_type = element.get_attribute("type")
+                                                if element_type in ["checkbox", "radio"]:
+                                                    driver.execute_script("arguments[0].click();", element)
+                                                else:
+                                                    element.clear()
+                                                    element.send_keys(post_action["value"])
+                                                time.sleep(1)
+                                            except Exception as e:
+                                                print(f"Input action failed: {str(e)}")
                                     except Exception as e:
                                         print(f"Error in detail page: {str(e)}")
-                                    finally:
-                                        driver.back()
-                                        time.sleep(2)
+                                
+                                # Only go back after ALL post-click actions are completed
+                                try:
+                                    driver.back()
+                                    time.sleep(2)
+                                except Exception as e:
+                                    print(f"Error going back: {str(e)}")
+
+                        elif action["type"] == "input":
+                            # Handle input actions within table rows
+                            selector = action["relative_selector"].split(">")[-1].strip()
+                            input_element = current_row.find_element(By.CSS_SELECTOR, selector)
+                            input_element.clear()
+                            input_element.send_keys(action["value"])
+                            time.sleep(1)
 
                     except StaleElementReferenceException:
                         print(f"Stale element in row {row_index + 1}, retrying...")
@@ -174,14 +235,34 @@ def process_table_rows(table_element, actions_in_loop):
         action.selector,
         currentTableLoop.selector
       );
+
+      // Check if this action is within the table (part of the table structure)
+      const isWithinTable = action.selector.includes(currentTableLoop.selector);
+
       if (action.type === "click") {
-        currentTableLoop.actions.push({
-          type: action.type,
-          relative_selector: relativeSelector,
-          post_click_actions: [],
-        });
+        if (isWithinTable) {
+          // This is a click within the table row (like clicking a link in a cell)
+          currentTableLoop.actions.push({
+            type: action.type,
+            relative_selector: relativeSelector,
+            post_click_actions: [],
+          });
+        } else {
+          // This is a click outside the table (like on a detail page after navigation)
+          const lastClickAction =
+            currentTableLoop.actions[currentTableLoop.actions.length - 1];
+          if (lastClickAction?.type === "click") {
+            lastClickAction.post_click_actions =
+              lastClickAction.post_click_actions || [];
+            lastClickAction.post_click_actions.push({
+              type: "click",
+              selector: action.selector,
+              post_click_actions: [],
+            });
+          }
+        }
       } else if (action.type === "label") {
-        if (action.selector.includes(currentTableLoop.selector)) {
+        if (isWithinTable) {
           currentTableLoop.actions.push({
             type: action.type,
             relative_selector: relativeSelector,
@@ -197,6 +278,26 @@ def process_table_rows(table_element, actions_in_loop):
               type: "label",
               selector: action.selector,
               label: action.label,
+            });
+          }
+        }
+      } else if (action.type === "input") {
+        if (isWithinTable) {
+          currentTableLoop.actions.push({
+            type: action.type,
+            relative_selector: relativeSelector,
+            value: action.value,
+          });
+        } else {
+          const lastClickAction =
+            currentTableLoop.actions[currentTableLoop.actions.length - 1];
+          if (lastClickAction?.type === "click") {
+            lastClickAction.post_click_actions =
+              lastClickAction.post_click_actions || [];
+            lastClickAction.post_click_actions.push({
+              type: "input",
+              selector: action.selector,
+              value: action.value,
             });
           }
         }
