@@ -104,3 +104,15 @@
 .toggle-button:hover {
   background: #0056b3;
 }
+
+/* dark overlay behind tooltip */
+.tooltip-overlay {
+  position: absolute;
+  display: block;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 9990;
+}

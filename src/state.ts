@@ -13,6 +13,7 @@ let lastHighlightedTable: HTMLElement | null = null;
 enum TableLoopState {
   INACTIVE,
   SELECTING,
+  SELECTING_NEXT_BUTTON,
   ACTIVE,
 }
 

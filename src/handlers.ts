@@ -13,12 +13,27 @@ function handleClick(event: MouseEvent): void {
     const tableElement = findTableElement(target);
     if (tableElement) {
       selectedTable = tableElement;
-      tableLoopState = TableLoopState.ACTIVE;
+      tableLoopState = TableLoopState.SELECTING_NEXT_BUTTON;
       recordAction({
         type: "tableLoopStart",
         selector: getUniqueSelector(tableElement),
         timestamp: Date.now(),
       });
+      updateTableLoopButton();
+      return;
+    }
+  }
+
+  // Next button selection mode
+  if (tableLoopState === TableLoopState.SELECTING_NEXT_BUTTON) {
+    if (isInteractiveClick(event)) {
+      // Record the next button selector
+      recordAction({
+        type: "tablePaginationNext",
+        selector: getUniqueSelector(target),
+        timestamp: Date.now(),
+      });
+      tableLoopState = TableLoopState.ACTIVE;
       updateTableLoopButton();
       return;
     }

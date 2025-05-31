@@ -55,6 +55,9 @@ async function createStationaryTooltip(): Promise<void> {
         case TableLoopState.SELECTING:
           tableLoopState = TableLoopState.INACTIVE;
           break;
+        case TableLoopState.SELECTING_NEXT_BUTTON:
+          tableLoopState = TableLoopState.INACTIVE;
+          break;
         case TableLoopState.ACTIVE:
           if (selectedTable) {
             recordAction({
@@ -193,6 +196,10 @@ function updateTableLoopButton(): void {
     case TableLoopState.SELECTING:
       toggleButton.style.background = "#ffc107";
       toggleButton.textContent = "Select Table...";
+      break;
+    case TableLoopState.SELECTING_NEXT_BUTTON:
+      toggleButton.style.background = "#ff6b35";
+      toggleButton.textContent = "Select Next Button...";
       break;
     case TableLoopState.ACTIVE:
       toggleButton.style.background = "#28a745";
