@@ -19,6 +19,7 @@ chrome.storage.local.get(
 async function initializeListeners(): Promise<void> {
   document.addEventListener("click", handleClick, true);
   document.addEventListener("input", handleInput, true);
+  document.addEventListener("change", handleSelect, true); // Add select listener
   await createRecorderTooltip();
   await createStationaryTooltip();
 }
@@ -26,6 +27,7 @@ async function initializeListeners(): Promise<void> {
 function removeListeners(): void {
   document.removeEventListener("click", handleClick, true);
   document.removeEventListener("input", handleInput, true);
+  document.removeEventListener("change", handleSelect, true); // Remove select listener
   removeRecorderTooltip();
   removeStationaryTooltip();
 }

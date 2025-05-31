@@ -65,8 +65,24 @@ function handleInput(event: Event): void {
   );
 }
 
+function handleSelect(event: Event): void {
+  if (!isRecording) return;
+  const target = event.target as HTMLSelectElement;
+  if (shouldIgnoreElement(target)) return;
+  const selector = getUniqueSelector(target);
+  if (!selector || !target || !target.options) return;
+  const selectedOption = target.options[target.selectedIndex];
+  recordAction({
+    type: "select",
+    selector,
+    value: target.value,
+    selectedText: selectedOption ? selectedOption.text : "",
+    timestamp: Date.now(),
+  });
+}
+
 // Key event handlers
-document.addEventListener("keyup", (e: KeyboardEvent) => {
+document.addEventListener("keydown", (e: KeyboardEvent) => {
   if (e.key === "Control") {
     if (isControlPressed) {
       unfixTooltip();

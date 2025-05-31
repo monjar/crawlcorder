@@ -107,8 +107,8 @@
 
 /* dark overlay behind tooltip */
 .tooltip-overlay {
-  position: absolute;
-  display: block;
+  position: fixed;
+  display: none; /* Initially hidden */
   top: 0;
   left: 0;
   width: 100vw;

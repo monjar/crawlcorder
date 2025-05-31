@@ -67,7 +67,8 @@ function findTableElement(element: HTMLElement): HTMLElement | null {
 function isInteractiveClick(event: MouseEvent): boolean {
   const target = event.target as HTMLElement;
   const tag = target.tagName.toLowerCase();
-  if (tag === "button" || tag === "a" || tag === "input") return true;
+  if (tag === "button" || tag === "a" || tag === "input" || tag === "select")
+    return true; // Add select
   if (
     target.getAttribute("role") === "button" ||
     target.getAttribute("role") === "link" ||

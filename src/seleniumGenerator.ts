@@ -45,6 +45,20 @@ base_url = "${baseUrl || ""}"  # Website URL
 # Initialize DataFrame to store scraped data
 scraped_data = []
 
+scraped_file_name = f"scraped_data_{int(time.time())}.csv"
+
+
+def save_scraped_data():
+    if scraped_data:
+        df = pd.DataFrame(scraped_data)
+
+        # Save to CSV file in the main download directory
+        output_filename = os.path.join(main_download_dir, scraped_file_name)
+        df.to_csv(output_filename, index=False)
+        print(f"\nData saved to: {output_filename}")
+    else:
+        print("\nNo data was scraped.")
+
 # Create download directory structure
 def setup_download_directories():
     """Create the main download directory based on site URL"""
@@ -54,9 +68,9 @@ def setup_download_directories():
     os.makedirs(main_download_dir, exist_ok=True)
     return main_download_dir
 
-def setup_row_download_dir(main_dir, row_index):
+def setup_row_download_dir(main_dir, folder_name):
     """Create download directory for specific row"""
-    row_dir = os.path.join(main_dir, f"row_{row_index}")
+    row_dir = os.path.join(main_dir, f"{folder_name}")
     os.makedirs(row_dir, exist_ok=True)
     return row_dir
 
@@ -128,13 +142,13 @@ def navigate_to_page(target_page, next_button_selector):
             )
             print(f"Navigating from page {current_page} to page {current_page + 1}")
             driver.execute_script("arguments[0].scrollIntoView(true);", next_button)
-            time.sleep(1)
+            time.sleep(0.5)
             driver.execute_script("arguments[0].click();", next_button)
-            time.sleep(3)
+            time.sleep(1)
             current_page += 1
         except Exception as e:
             print(f"Error navigating to page {target_page}: {str(e)}")
-            break
+            continue
 
 def process_table_with_pagination(table_element, table_config):
     """Process all pages of a table with pagination"""
@@ -165,12 +179,9 @@ def process_table_with_pagination(table_element, table_config):
                 
                 print(f"Clicking next button to go to page {page_number + 1}")
                 driver.execute_script("arguments[0].scrollIntoView(true);", next_button)
-                time.sleep(1)
+                time.sleep(0.5)
                 driver.execute_script("arguments[0].click();", next_button)
-                time.sleep(3)  # Wait for page to load
-                
-                # Wait for table to be updated with new data
-                time.sleep(2)
+                time.sleep(1)
                 
                 page_number += 1
                 
@@ -183,10 +194,89 @@ def process_table_with_pagination(table_element, table_config):
     
     print(f"Completed processing {page_number} page(s)")
 
+def wait_for_new_tab_and_download(original_tabs_count, page, row_index, timeout=30):
+    """Wait for new tab to open and download to start"""
+    start_time = time.time()
+    
+    # FIRST: Set up the download directory BEFORE any download starts
+    row_download_dir = setup_row_download_dir(
+        main_download_dir, f"page_{page}_row_{row_index + 1}"
+    )
+    print(f"Setting download directory for row {row_index + 1}: {row_download_dir}")
+    
+    # Update Chrome download preferences BEFORE checking for downloads
+    driver.execute_cdp_cmd(
+        "Page.setDownloadBehavior",
+        {"behavior": "allow", "downloadPath": row_download_dir},
+    )
+
+    # Wait for new tab to open
+    while len(driver.window_handles) <= original_tabs_count:
+        if time.time() - start_time > 30:
+            print("Timeout waiting for new tab to open")
+            return False
+        time.sleep(0.5)
+
+    print("New tab detected")
+
+    # Monitor the ROW-SPECIFIC download directory for new files
+    initial_files = set()
+    try:
+        initial_files = set(os.listdir(row_download_dir))
+    except:
+        initial_files = set()
+    
+    download_started = False
+
+    while time.time() - start_time < timeout:
+        try:
+            current_files = set(os.listdir(row_download_dir))
+            new_files = current_files - initial_files
+            
+            if new_files:
+                download_started = True
+                print(f"Download detected in row directory: {new_files}")
+                break
+        except:
+            pass
+            
+        time.sleep(1)
+
+    # Close the download tab and switch back to main tab
+    if len(driver.window_handles) > original_tabs_count:
+        driver.switch_to.window(driver.window_handles[-1])
+        driver.close()
+        driver.switch_to.window(driver.window_handles[0])
+        print("Closed download tab and returned to main tab")
+    
+    return download_started
+
+def wait_for_download_completion(timeout=120):
+    """Wait for all downloads to complete"""
+    start_time = time.time()
+    
+    while time.time() - start_time < timeout:
+        downloading_files = []
+        try:
+            for file in os.listdir(main_download_dir):
+                if file.endswith(('.crdownload', '.tmp', '.part')):
+                    downloading_files.append(file)
+        except:
+            pass
+            
+        if not downloading_files:
+            print("All downloads completed")
+            return True
+            
+        print(f"Still downloading: {downloading_files}")
+        time.sleep(2)
+    
+    print("Download timeout reached")
+    return False
+
 def process_table_rows(table_element, actions_in_loop, current_page_number=1, next_button_selector=None):
     """Process all rows in a table, executing actions for each row"""
     try:
-        # Wait for table to be present and get rows
         tbody = WebDriverWait(driver, 10).until(
             EC.presence_of_element_located((By.TAG_NAME, "tbody"))
         )
@@ -198,23 +288,12 @@ def process_table_rows(table_element, actions_in_loop, current_page_number=1, ne
             try:
                 print(f"Processing row {row_index + 1}/{total_rows} on page {current_page_number}")
 
-                # Setup download directory for this row
-                #row_download_dir = setup_row_download_dir(main_download_dir, f"page_{current_page_number}_row_{row_index + 1}")
-                #print(f"Downloads for this row will be saved to: {row_download_dir}")
-                
-                # Update Chrome download preferences for this row
-                #driver.execute_cdp_cmd('Page.setDownloadBehavior', {
-                #    'behavior': 'allow',
-                #    'downloadPath': row_download_dir
-                #})
-
                 row_data = {
                     "page_number": current_page_number,
                     "row_index": row_index + 1,
                     "global_row_id": f"page_{current_page_number}_row_{row_index + 1}"
                 }
 
-                # Wait for table to be present again and get fresh rows
                 tbody = WebDriverWait(driver, 10).until(
                     EC.presence_of_element_located((By.TAG_NAME, "tbody"))
                 )
@@ -222,33 +301,33 @@ def process_table_rows(table_element, actions_in_loop, current_page_number=1, ne
                 rows = tbody.find_elements(By.TAG_NAME, "tr")
                 current_row = rows[row_index]
                 
-                # Track if we navigated away from the page
                 navigated_away = False
                 
-                # Process actions for this row
                 for action in actions_in_loop:
                     try:
                         if action["type"] == "label":
-                            # Extract text directly from the cell
-                            selector = action["relative_selector"].split(">")[-1].strip()
-                            cell = current_row.find_element(By.CSS_SELECTOR, selector)
+                            cell = current_row.find_element(By.CSS_SELECTOR, action["relative_selector"])
                             value = cell.text.strip()
                             print(f"{action['label']}: {value}")
                             row_data[action['label']] = value
 
                         elif action["type"] == "click":
-                            # Find and click link directly in row
                             selector = action["relative_selector"].split(">")[-1].strip()
                             link = current_row.find_element(By.CSS_SELECTOR, selector)
-                            
-                            # Scroll and click
+                            original_tabs = len(driver.window_handles)
+
                             driver.execute_script("arguments[0].scrollIntoView(true);", link)
-                            time.sleep(1)
+                            time.sleep(0.5)
                             driver.execute_script("arguments[0].click();", link)
-                            time.sleep(2)
+                            time.sleep(1)
+
+                            if len(driver.window_handles) > original_tabs:
+                                print("New tab detected - handling download")
+                                download_started = wait_for_new_tab_and_download(
+                                    original_tabs, current_page_number, row_index
+                                )
                             navigated_away = True
 
-                            # Handle post-click actions
                             if action.get("post_click_actions"):
                                 for post_action in action["post_click_actions"]:
                                     try:
@@ -267,10 +346,18 @@ def process_table_rows(table_element, actions_in_loop, current_page_number=1, ne
                                                     (By.CSS_SELECTOR, post_action["selector"])
                                                 )
                                             )
+
+                                            original_tabs = len(driver.window_handles)
+
                                             driver.execute_script("arguments[0].scrollIntoView(true);", element)
-                                            time.sleep(1)
+                                            time.sleep(0.5)
                                             driver.execute_script("arguments[0].click();", element)
-                                            time.sleep(2)
+                                            time.sleep(0.5)
+                                            if len(driver.window_handles) > original_tabs:
+                                                print("New tab detected - handling download")
+                                                download_started = wait_for_new_tab_and_download(
+                                                    original_tabs, current_page_number, row_index
+                                                )
                                         elif post_action["type"] == "input":
                                             try:
                                                 # Try multiple selectors for better compatibility
@@ -313,18 +400,15 @@ def process_table_rows(table_element, actions_in_loop, current_page_number=1, ne
                                     except Exception as e:
                                         print(f"Error in detail page: {str(e)}")
                                 
-                                # Go back and navigate to correct page if we navigated away
                                 if navigated_away:
                                     try:
-                                        print(f"Going back and navigating to page {current_page_number}")
+                                        print(f"Going back to page {current_page_number}")
                                         driver.back()
-                                        time.sleep(2)
+                                        time.sleep(0.5)
                                         
-                                        # Navigate back to the correct page if not on page 1
                                         if current_page_number > 1 and next_button_selector:
                                             navigate_to_page(current_page_number, next_button_selector)
                                             
-                                        # Refresh the table and row references
                                         tbody = WebDriverWait(driver, 10).until(
                                             EC.presence_of_element_located((By.TAG_NAME, "tbody"))
                                         )
@@ -338,7 +422,6 @@ def process_table_rows(table_element, actions_in_loop, current_page_number=1, ne
                                         print(f"Error going back and navigating: {str(e)}")
 
                         elif action["type"] == "input":
-                            # Handle input actions within table rows
                             selector = action["relative_selector"].split(">")[-1].strip()
                             input_element = current_row.find_element(By.CSS_SELECTOR, selector)
                             input_element.clear()
@@ -348,14 +431,13 @@ def process_table_rows(table_element, actions_in_loop, current_page_number=1, ne
                     except StaleElementReferenceException:
                         print(f"Stale element in row {row_index + 1}, retrying...")
                         time.sleep(1)
-                        break  # Break inner loop to retry row
+                        break
                     except Exception as e:
                         print(f"Error processing action in row {row_index + 1}: {str(e)}")
                         continue
 
-                # Add row data to scraped data
                 scraped_data.append(row_data)
-
+                save_scraped_data()
             except Exception as e:
                 print(f"Error processing row {row_index + 1}: {str(e)}")
                 continue
@@ -506,24 +588,7 @@ def process_table_rows(table_element, actions_in_loop, current_page_number=1, ne
   \n# Create DataFrame and export results
   print("Scraping completed successfully!")
   
-  # Create DataFrame from scraped data
-  if scraped_data:
-      df = pd.DataFrame(scraped_data)
-      print(f"\\nDataFrame created with {len(df)} rows and {len(df.columns)} columns")
-      print("\\nDataFrame columns:", list(df.columns))
-      print("\\nFirst few rows:")
-      print(df.head())
-      
-      # Save to CSV file in the main download directory
-      output_filename = os.path.join(main_download_dir, f"scraped_data_{int(time.time())}.csv")
-      df.to_csv(output_filename, index=False)
-      print(f"\\nData saved to: {output_filename}")
-      
-      # Display summary statistics
-      print("\\nDataFrame info:")
-      print(df.info())
-  else:
-      print("\\nNo data was scraped.")
+  save_scraped_data()
   
   driver.quit()`;
 

@@ -4,18 +4,23 @@
 /// <reference path="./actionRecorder.ts" />
 
 let recorderTooltip: HTMLDivElement | null = null;
-
+let recorderTooltipOverlay: HTMLDivElement | null = null;
 async function createRecorderTooltip(): Promise<void> {
-  if (recorderTooltip || document.querySelector("#recorder-tooltip")) return;
+  if (recorderTooltip || document.querySelector("#tooltip-overlay")) return;
   try {
     const response = await fetch(chrome.runtime.getURL("tooltip.html"));
     const html = await response.text();
     const template = document.createElement("div");
     template.innerHTML = html;
+    recorderTooltipOverlay = template.querySelector(
+      "#tooltip-overlay"
+    ) as HTMLDivElement;
     recorderTooltip = template.querySelector(
       "#recorder-tooltip"
     ) as HTMLDivElement;
-    if (!recorderTooltip) throw new Error("Tooltip element not found");
+    if (!recorderTooltip || !recorderTooltipOverlay)
+      throw new Error("Tooltip element not found");
+    document.body.appendChild(recorderTooltipOverlay);
     document.body.appendChild(recorderTooltip);
     document.addEventListener("mousemove", updateTooltipPosition);
   } catch (error) {
@@ -85,8 +90,11 @@ function removeRecorderTooltip(): void {
       lastHighlightedElement.classList.remove("recorder-highlight");
       lastHighlightedElement = null;
     }
+
     recorderTooltip.remove();
     recorderTooltip = null;
+    recorderTooltipOverlay?.remove();
+    recorderTooltipOverlay = null;
   }
 }
 
@@ -135,6 +143,9 @@ function fixTooltip(target: HTMLElement): void {
     ".label-container"
   ) as HTMLElement;
   labelContainer.style.display = "flex";
+  if (recorderTooltipOverlay) {
+    recorderTooltipOverlay.style.display = "block";
+  }
   setupLabelHandlers(target);
 }
 
@@ -142,9 +153,13 @@ function unfixTooltip(): void {
   if (!recorderTooltip) return;
   isTooltipFixed = false;
   recorderTooltip.classList.remove("fixed");
+
   const labelContainer = recorderTooltip.querySelector(
     ".label-container"
   ) as HTMLElement;
+  if (recorderTooltipOverlay) {
+    recorderTooltipOverlay.style.display = "none";
+  }
   labelContainer.style.display = "none";
 }
 

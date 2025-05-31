@@ -2,7 +2,7 @@ namespace Types {
   export type ActionType =
     | "click"
     | "input"
-    | "select"
+    | "select" // Add select type
     | "change"
     | "submit"
     | "keydown"
@@ -17,6 +17,7 @@ namespace Types {
     type: ActionType;
     selector: string;
     value?: string;
+    selectedText?: string; // Add selectedText for select options
     label?: string;
     timestamp: number;
   }
